@@ -4,62 +4,7 @@ import { messages, messageActivity } from '../db/schema.js';
 
 const router = Router();
 
-const SPAM_FREE_DOMAINS = [
-  'tempmail.com', '10minutemail.com', 'guerrillamail.com', 'mailinator.com',
-  'throwaway.email', 'fakeinbox.com', 'trashmail.com', 'getnada.com',
-  'yopmail.com', 'dispostable.com', 'sharklasers.com', 'grr.la'
-];
-
-const COLD_EMAIL_KEYWORDS = [
-  'buy now', 'click here', 'limited offer', 'act now', 'order now',
-  'free consultation', 'best price', 'discount', 'special offer',
-  'money back', 'guarantee', 'make money', 'earn money', 'work from home',
-  'investment opportunity', 'double your money', 'no experience needed',
-  'lose weight', 'weight loss', 'male enhancement', 'enlarge', 'bitcoin',
-  'crypto', 'forex', 'mlm', 'network marketing', 'pyramid scheme',
-  'congratulations', 'you have been selected', 'winner', 'lottery',
-  'inheritance', 'bank transfer', 'western union', 'moneygram',
-  'cheap meds', 'pharmacy', 'prescription', 'viagra', 'casino',
-  'adult', 'dating', 'meet singles', 'hot girls', 'nude'
-];
-
-const SUSPICIOUS_TLDS = [
-  '.xyz', '.top', '.click', '.link', '.work', '.date', '.racing',
-  '.science', '.party', '.cricket', '.win', '.download', '.bid',
-  '.stream', '.trade', '.review', '.accountant', '.loan', '.win'
-];
-
 function detectColdEmail(email: string, body?: string): { isCold: boolean; reason: string } {
-  if (body) {
-    const bodyLower = body.toLowerCase();
-    for (const keyword of COLD_EMAIL_KEYWORDS) {
-      if (bodyLower.includes(keyword)) {
-        return { isCold: true, reason: `Cold email keyword: ${keyword}` };
-      }
-    }
-  }
-  
-  if (email) {
-    const emailLower = email.toLowerCase();
-    const domain = emailLower.split('@')[1];
-    
-    if (domain && SPAM_FREE_DOMAINS.some(d => domain.includes(d))) {
-      return { isCold: true, reason: 'Disposable email provider' };
-    }
-    
-    if (domain && SUSPICIOUS_TLDS.some(tld => domain.endsWith(tld))) {
-      return { isCold: true, reason: 'Suspicious TLD' };
-    }
-    
-    const namePart = emailLower.split('@')[0];
-    if (namePart.length > 20 && !namePart.includes('.') && !namePart.includes(' ')) {
-      const randomPattern = /^[a-z]{10,}[0-9]+$/;
-      if (randomPattern.test(namePart)) {
-        return { isCold: true, reason: 'Random generated email pattern' };
-      }
-    }
-  }
-  
   return { isCold: false, reason: '' };
 }
 

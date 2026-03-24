@@ -123,6 +123,7 @@ router.post('/:id/reply', async (req, res) => {
         
         const response = await fetch(process.env.N8N_WEBHOOK_URL, {
           method: 'POST',
+          redirect: 'follow',
           headers: {
             'Content-Type': 'application/json',
             'x-secret-key': process.env.N8N_SECRET || ''
@@ -137,6 +138,8 @@ router.post('/:id/reply', async (req, res) => {
         
         clearTimeout(timeout);
         console.log('n8n response status:', response.status);
+        const responseText = await response.text();
+        console.log('n8n response body:', responseText);
       } catch (n8nError: any) {
         console.error('n8n webhook error:', n8nError.message || n8nError);
       }

@@ -117,13 +117,12 @@ router.post('/:id/reply', async (req, res) => {
     const message = await db.select().from(messages).where(eq(messages.id, parseInt(id)));
     
     if (process.env.N8N_WEBHOOK_URL && message[0]) {
-      console.log('Calling n8n webhook:', process.env.N8N_WEBHOOK_URL);
       try {
-        const response = await fetch(process.env.N8N_WEBHOOK_URL, {
+        await fetch(process.env.N8N_WEBHOOK_URL, {
           method: 'POST',
           headers: {
             'Content-Type': 'application/json',
-            'X-Secret-Key': process.env.N8N_SECRET || ''
+            'x-secret-key': process.env.N8N_SECRET || ''
           },
           body: JSON.stringify({
             userEmail: message[0].email,
@@ -131,12 +130,9 @@ router.post('/:id/reply', async (req, res) => {
             replyMessage: reply_body
           })
         });
-        console.log('n8n response status:', response.status);
       } catch (n8nError) {
         console.error('n8n webhook error:', n8nError);
       }
-    } else {
-      console.log('N8N_WEBHOOK_URL not set or message not found');
     }
     
     res.json({ success: true, data: reply[0] });

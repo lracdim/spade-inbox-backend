@@ -2,10 +2,6 @@
 builder = "NIXPACKS"
 buildCommand = "npm run build"
 
-[build.env]
-NODE_ENV = "production"
-NPM_CONFIG_PRODUCTION = "false"
-
 [deploy]
 startCommand = "node dist/index.js"
 restartPolicyType = "ON_FAILURE"

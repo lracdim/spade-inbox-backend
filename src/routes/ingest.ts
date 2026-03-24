@@ -37,21 +37,36 @@ async function triggerAutoreplyWebhook(message: any) {
 
 router.post('/contact', async (req, res) => {
   try {
-    const { name, email, phone, company, subject, body, metadata, skipAutoreply } = req.body;
+    const { 
+      name, client_name, 
+      email, client_email, 
+      phone, field_3b8f32e,
+      company, 
+      subject, field_bd052b8,
+      body, form_message,
+      metadata, skipAutoreply 
+    } = req.body;
+    
     const ipAddress = req.ip || req.socket.remoteAddress;
     const userAgent = req.headers['user-agent'];
     
-    const coldEmail = detectColdEmail(email, body);
+    const finalName = name || client_name || 'Unknown';
+    const finalEmail = email || client_email || '';
+    const finalPhone = phone || field_3b8f32e || null;
+    const finalSubject = subject || field_bd052b8 || '';
+    const finalBody = body || form_message || '';
+    
+    const coldEmail = detectColdEmail(finalEmail, finalBody);
     const status = coldEmail.isCold ? 'spam' : 'new';
     
-    const message = await db.insert(messages).values({
+    const newMessage = await db.insert(messages).values({
       source: 'contact',
-      name,
-      email,
-      phone,
+      name: finalName,
+      email: finalEmail,
+      phone: finalPhone,
       company,
-      subject,
-      body,
+      subject: finalSubject,
+      body: finalBody,
       status,
       ipAddress,
       userAgent,
@@ -59,16 +74,16 @@ router.post('/contact', async (req, res) => {
     }).returning();
     
     await db.insert(messageActivity).values({
-      messageId: message[0].id,
+      messageId: newMessage[0].id,
       action: coldEmail.isCold ? 'blocked_cold_email' : 'created',
       ipAddress,
     });
     
     if (!coldEmail.isCold && skipAutoreply !== true) {
-      triggerAutoreplyWebhook(message[0]);
+      triggerAutoreplyWebhook(newMessage[0]);
     }
     
-    res.json({ success: true, data: message[0], coldEmail: coldEmail.isCold });
+    res.json({ success: true, data: newMessage[0], coldEmail: coldEmail.isCold });
   } catch (error: any) {
     res.json({ success: false, message: error.message });
   }

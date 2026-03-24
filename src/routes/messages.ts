@@ -137,9 +137,6 @@ router.post('/:id/reply', async (req, res) => {
         });
         
         clearTimeout(timeout);
-        console.log('n8n response status:', response.status);
-        const responseText = await response.text();
-        console.log('n8n response body:', responseText);
       } catch (n8nError: any) {
         console.error('n8n webhook error:', n8nError.message || n8nError);
       }

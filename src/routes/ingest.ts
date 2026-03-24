@@ -37,24 +37,19 @@ async function triggerAutoreplyWebhook(message: any) {
 
 router.post('/contact', async (req, res) => {
   try {
-    const { 
-      name, client_name, 
-      email, client_email, 
-      phone, field_3b8f32e,
-      company, 
-      subject, field_bd052b8,
-      body, form_message,
-      metadata, skipAutoreply 
-    } = req.body;
+    const { client_name, client_email, field_phone, field_company, field_message, metadata, skipAutoreply } = req.body;
+    
+    console.log('Elementor form data:', req.body);
     
     const ipAddress = req.ip || req.socket.remoteAddress;
     const userAgent = req.headers['user-agent'];
     
-    const finalName = name || client_name || 'Unknown';
-    const finalEmail = email || client_email || '';
-    const finalPhone = phone || field_3b8f32e || null;
-    const finalSubject = subject || field_bd052b8 || '';
-    const finalBody = body || form_message || '';
+    const finalName    = client_name   || 'Unknown';
+    const finalEmail   = client_email  || '';
+    const finalPhone   = field_phone   || null;
+    const finalCompany = field_company || null;
+    const finalBody    = field_message || '';
+    const finalSubject = `Contact form submission from ${finalName}`;
     
     const coldEmail = detectColdEmail(finalEmail, finalBody);
     const status = coldEmail.isCold ? 'spam' : 'new';
@@ -64,7 +59,7 @@ router.post('/contact', async (req, res) => {
       name: finalName,
       email: finalEmail,
       phone: finalPhone,
-      company,
+      company: finalCompany,
       subject: finalSubject,
       body: finalBody,
       status,

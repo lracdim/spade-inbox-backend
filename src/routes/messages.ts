@@ -116,12 +116,12 @@ router.post('/:id/reply', async (req, res) => {
 
     const message = await db.select().from(messages).where(eq(messages.id, parseInt(id)));
     
-    console.log('N8N_WEBHOOK_URL:', process.env.N8N_WEBHOOK_URL);
-    console.log('message[0]:', message[0]);
-    
     if (process.env.N8N_WEBHOOK_URL && message[0]) {
       try {
-        await fetch(process.env.N8N_WEBHOOK_URL, {
+        const controller = new AbortController();
+        const timeout = setTimeout(() => controller.abort(), 10000);
+        
+        const response = await fetch(process.env.N8N_WEBHOOK_URL, {
           method: 'POST',
           headers: {
             'Content-Type': 'application/json',
@@ -131,10 +131,14 @@ router.post('/:id/reply', async (req, res) => {
             userEmail: message[0].email,
             userName: message[0].name,
             replyMessage: reply_body
-          })
+          }),
+          signal: controller.signal
         });
-      } catch (n8nError) {
-        console.error('n8n webhook error:', n8nError);
+        
+        clearTimeout(timeout);
+        console.log('n8n response status:', response.status);
+      } catch (n8nError: any) {
+        console.error('n8n webhook error:', n8nError.message || n8nError);
       }
     }
     

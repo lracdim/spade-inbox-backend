@@ -190,4 +190,28 @@ router.get('/', async (req, res) => {
   }
 });
 
+router.post('/bulk/trash', async (req, res) => {
+  try {
+    const { ids } = req.body;
+    
+    if (!Array.isArray(ids) || ids.length === 0) {
+      return res.json({ success: false, message: 'No IDs provided' });
+    }
+    
+    await db.update(messages)
+      .set({ status: 'trash', updatedAt: new Date() })
+      .where(eq(messages.id, ids[0]));
+    
+    for (let i = 1; i < ids.length; i++) {
+      await db.update(messages)
+        .set({ status: 'trash', updatedAt: new Date() })
+        .where(eq(messages.id, ids[i]));
+    }
+    
+    res.json({ success: true });
+  } catch (error: any) {
+    res.json({ success: false, message: error.message });
+  }
+});
+
 export { router as messagesRouter };

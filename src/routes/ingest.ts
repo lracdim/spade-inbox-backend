@@ -14,7 +14,7 @@ const SPAM_KEYWORDS = [
   'guest post', 'link building', 'backlink', 'collaboration opportunity',
   'content partnership', 'sponsored post', 'paid post',
   'i hope this email finds you', 'i hope this message finds you',
-  'i am reaching out', 'i wanted to reach out',
+  'i am reaching out', 'i wanted to reach out', 'im reaching out',
   'i would like to offer', 'we would like to offer',
   'please let me know if you are interested',
   'kindly revert', 'kindly reply',
@@ -23,6 +23,13 @@ const SPAM_KEYWORDS = [
   'click here', 'buy now', 'limited time offer', 'act now',
   'congratulations you have been selected',
   'you have won', 'claim your prize',
+  'reach out', 'helping firms', 'help firms', 'like yours',
+  'would love to', 'do you have', 'next tuesday', 'next wednesday',
+  'quick call', 'quick look', '10 minutes', '15 minutes',
+  'scheduling', 'calendar', 'book a call',
+  'specialized', 'middleware', 'eliminate manual',
+  'cut their', 'cut your', 'reduced by',
+  'i noticed', 'i ve been following',
 ];
 
 const SPAM_PATTERNS = [
@@ -31,6 +38,10 @@ const SPAM_PATTERNS = [
   /\$\d+/,
   /\d+%\s*(off|discount|roi|return)/i,
   /\b(whatsapp|telegram)\s*[:+]?\s*\d{7,}/i,
+  /i[' ]m\s+(reaching|reaching out|reaching|following)/i,
+  /(would|could)\s+love\s+to/i,
+  /(quick|call|look|chat|demo)\s+(call|look|chat|demo|discussion)/i,
+  /(\d+)\s*(minutes?|hours?)\s*(next|for\s+a)/i,
 ];
 
 function detectColdEmail(email: string, body?: string): { isCold: boolean; reason: string } {
@@ -57,30 +68,51 @@ function detectColdEmail(email: string, body?: string): { isCold: boolean; reaso
   return { isCold: false, reason: '' };
 }
 
-async function triggerAutoreplyWebhook(message: any) {
-  if (!process.env.N8N_AUTOREPLY_WEBHOOK_URL) return;
+async function triggerAutoreplyWebhook(message: any, type: 'contact' | 'subscription' = 'contact') {
+  const webhookUrl = process.env.N8N_AUTOREPLY_WEBHOOK_URL;
+  if (!webhookUrl) {
+    console.log('Autoreply webhook URL not configured');
+    return;
+  }
+  
+  console.log('Triggering autoreply webhook for message:', message.id, 'type:', type);
+  
+  const payload: any = {
+    messageId: message.id,
+    name: message.name,
+    email: message.email,
+    type
+  };
+  
+  if (type === 'subscription') {
+    payload.subject = 'Thank You for Subscribing!';
+    payload.body = 'Thank you for Subscribing Spade Security Services. Be the first to know in every updates.';
+  } else {
+    payload.subject = message.subject;
+    payload.body = message.body;
+  }
   
   try {
+    console.log('Calling webhook URL:', webhookUrl);
+    console.log('Payload:', JSON.stringify(payload));
+    
     const controller = new AbortController();
     const timeout = setTimeout(() => controller.abort(), 10000);
     
-    await fetch(process.env.N8N_AUTOREPLY_WEBHOOK_URL, {
+    const response = await fetch(webhookUrl, {
       method: 'POST',
       redirect: 'follow',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        messageId: message.id,
-        name: message.name,
-        email: message.email,
-        subject: message.subject,
-        body: message.body
-      }),
+      body: JSON.stringify(payload),
       signal: controller.signal
     });
     
     clearTimeout(timeout);
-  } catch (error) {
-    console.error('Autoreply webhook error:', error);
+    const responseText = await response.text();
+    console.log('Autoreply webhook response status:', response.status);
+    console.log('Autoreply webhook response body:', responseText);
+  } catch (error: any) {
+    console.error('Autoreply webhook error:', error.message);
   }
 }
 
@@ -126,7 +158,7 @@ router.post('/contact', async (req, res) => {
     });
     
     if (!coldEmail.isCold && skipAutoreply !== true) {
-      triggerAutoreplyWebhook(newMessage[0]);
+      await triggerAutoreplyWebhook(newMessage[0]);
     }
     
     io.emit('new-message', newMessage[0]);
@@ -177,7 +209,7 @@ router.post('/quote', async (req, res) => {
     });
     
     if (!coldEmail.isCold && skipAutoreply !== true) {
-      triggerAutoreplyWebhook(message[0]);
+      await triggerAutoreplyWebhook(message[0]);
     }
     
     io.emit('new-message', message[0]);
@@ -193,7 +225,7 @@ router.post('/subscription', async (req, res) => {
     const fields = req.body.fields || req.body;
     const { skipAutoreply } = req.body;
     
-    const finalEmail = fields.email?.value || fields.email || '';
+    const finalEmail = fields.subs_email?.value || fields.subs_email || '';
     
     const ipAddress = req.ip || req.socket.remoteAddress;
     const userAgent = req.headers['user-agent'];
@@ -219,7 +251,7 @@ router.post('/subscription', async (req, res) => {
     });
     
     if (!coldEmail.isCold && skipAutoreply !== true) {
-      triggerAutoreplyWebhook(message[0]);
+      await triggerAutoreplyWebhook(message[0], 'subscription');
     }
     
     io.emit('new-message', message[0]);

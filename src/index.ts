@@ -22,6 +22,19 @@ export const io = new Server(httpServer, {
   },
 });
 
+io.on('connection', (socket) => {
+  console.log(`User connected: ${socket.id}`);
+
+  socket.on('join', (userId: number) => {
+    socket.join(`user:${userId}`);
+    console.log(`User ${userId} joined room user:${userId}`);
+  });
+
+  socket.on('disconnect', () => {
+    console.log(`User disconnected: ${socket.id}`);
+  });
+});
+
 app.use(cors({
   origin: process.env.CORS_ORIGIN || '*',
   credentials: true,

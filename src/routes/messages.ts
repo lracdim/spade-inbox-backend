@@ -154,6 +154,9 @@ router.get('/', async (req, res) => {
     const offset = (parseInt(page as string) - 1) * parseInt(limit as string);
     
     const conditions: any[] = [];
+    if (!status) {
+      conditions.push(sql`${messages.status} != 'spam'`);
+    }
     if (status) conditions.push(eq(messages.status, status as string));
     if (priority) conditions.push(eq(messages.priority, priority as string));
     if (source) conditions.push(eq(messages.source, source as string));
@@ -206,6 +209,43 @@ router.post('/bulk/trash', async (req, res) => {
       await db.update(messages)
         .set({ status: 'trash', updatedAt: new Date() })
         .where(eq(messages.id, ids[i]));
+    }
+    
+    res.json({ success: true });
+  } catch (error: any) {
+    res.json({ success: false, message: error.message });
+  }
+});
+
+router.post('/bulk/delete', async (req, res) => {
+  try {
+    const { ids } = req.body;
+    
+    if (!Array.isArray(ids) || ids.length === 0) {
+      return res.json({ success: false, message: 'No IDs provided' });
+    }
+    
+    await db.delete(messageActivity).where(eq(messageActivity.messageId, ids[0]));
+    await db.delete(messages).where(eq(messages.id, ids[0]));
+    
+    for (let i = 1; i < ids.length; i++) {
+      await db.delete(messageActivity).where(eq(messageActivity.messageId, ids[i]));
+      await db.delete(messages).where(eq(messages.id, ids[i]));
+    }
+    
+    res.json({ success: true });
+  } catch (error: any) {
+    res.json({ success: false, message: error.message });
+  }
+});
+
+router.post('/empty-trash', async (req, res) => {
+  try {
+    const trashMessages = await db.select({ id: messages.id }).from(messages).where(eq(messages.status, 'trash'));
+    
+    for (const msg of trashMessages) {
+      await db.delete(messageActivity).where(eq(messageActivity.messageId, msg.id));
+      await db.delete(messages).where(eq(messages.id, msg.id));
     }
     
     res.json({ success: true });

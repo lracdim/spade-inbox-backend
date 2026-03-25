@@ -14,7 +14,7 @@ const SPAM_KEYWORDS = [
   'guest post', 'link building', 'backlink', 'collaboration opportunity',
   'content partnership', 'sponsored post', 'paid post',
   'i hope this email finds you', 'i hope this message finds you',
-  'i am reaching out', 'i wanted to reach out', 'im reaching out',
+  'i am reaching out', 'i wanted to reach out',
   'i would like to offer', 'we would like to offer',
   'please let me know if you are interested',
   'kindly revert', 'kindly reply',
@@ -23,13 +23,9 @@ const SPAM_KEYWORDS = [
   'click here', 'buy now', 'limited time offer', 'act now',
   'congratulations you have been selected',
   'you have won', 'claim your prize',
-  'reach out', 'helping firms', 'help firms', 'like yours',
-  'would love to', 'do you have', 'next tuesday', 'next wednesday',
-  'quick call', 'quick look', '10 minutes', '15 minutes',
-  'scheduling', 'calendar', 'book a call',
-  'specialized', 'middleware', 'eliminate manual',
-  'cut their', 'cut your', 'reduced by',
-  'i noticed', 'i ve been following',
+  'bank', 'million dollars', 'inheritance', 'next of kin',
+  'funds release', 'risk free', 'awaiting your reply',
+  'private email', 'urgent business',
 ];
 
 const SPAM_PATTERNS = [
@@ -38,10 +34,7 @@ const SPAM_PATTERNS = [
   /\$\d+/,
   /\d+%\s*(off|discount|roi|return)/i,
   /\b(whatsapp|telegram)\s*[:+]?\s*\d{7,}/i,
-  /i[' ]m\s+(reaching|reaching out|reaching|following)/i,
-  /(would|could)\s+love\s+to/i,
-  /(quick|call|look|chat|demo)\s+(call|look|chat|demo|discussion)/i,
-  /(\d+)\s*(minutes?|hours?)\s*(next|for\s+a)/i,
+  /\d+\s*(million|billion)\s*(dollar|usd)/i,
 ];
 
 function detectColdEmail(email: string, body?: string): { isCold: boolean; reason: string } {

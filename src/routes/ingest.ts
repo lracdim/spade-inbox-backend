@@ -5,7 +5,55 @@ import { io } from '../index.js';
 
 const router = Router();
 
+const SPAM_KEYWORDS = [
+  'seo services', 'digital marketing services', 'we can help you rank',
+  'increase your traffic', 'boost your website', 'lead generation',
+  'we specialize in', 'our agency', 'our team can help',
+  'i came across your website', 'i visited your website',
+  'i found your website', 'i noticed your website',
+  'guest post', 'link building', 'backlink', 'collaboration opportunity',
+  'content partnership', 'sponsored post', 'paid post',
+  'i hope this email finds you', 'i hope this message finds you',
+  'i am reaching out', 'i wanted to reach out',
+  'i would like to offer', 'we would like to offer',
+  'please let me know if you are interested',
+  'kindly revert', 'kindly reply',
+  'investment opportunity', 'crypto', 'bitcoin', 'passive income',
+  'financial freedom', 'work from home opportunity',
+  'click here', 'buy now', 'limited time offer', 'act now',
+  'congratulations you have been selected',
+  'you have won', 'claim your prize',
+];
+
+const SPAM_PATTERNS = [
+  /\b(https?:\/\/\S+)\b.*\b(https?:\/\/\S+)\b/i,
+  /dear\s+(sir|madam|owner|webmaster|admin)/i,
+  /\$\d+/,
+  /\d+%\s*(off|discount|roi|return)/i,
+  /\b(whatsapp|telegram)\s*[:+]?\s*\d{7,}/i,
+];
+
 function detectColdEmail(email: string, body?: string): { isCold: boolean; reason: string } {
+  if (!body) return { isCold: false, reason: '' };
+
+  const lowerBody = body.toLowerCase();
+
+  for (const keyword of SPAM_KEYWORDS) {
+    if (lowerBody.includes(keyword)) {
+      return { isCold: true, reason: `Spam keyword matched: "${keyword}"` };
+    }
+  }
+
+  for (const pattern of SPAM_PATTERNS) {
+    if (pattern.test(body)) {
+      return { isCold: true, reason: `Spam pattern matched: ${pattern}` };
+    }
+  }
+
+  if (body.trim().length < 10) {
+    return { isCold: true, reason: 'Message too short' };
+  }
+
   return { isCold: false, reason: '' };
 }
 

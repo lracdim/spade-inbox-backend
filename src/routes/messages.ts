@@ -2,7 +2,7 @@ import { Router } from 'express';
 import jwt from 'jsonwebtoken';
 import { eq, desc, and, sql } from 'drizzle-orm';
 import { db } from '../db/index.js';
-import { messages, messageReplies, messageActivity } from '../db/schema.js';
+import { messages, messageReplies, messageActivity, messageViews } from '../db/schema.js';
 
 const router = Router();
 
@@ -41,9 +41,17 @@ router.get('/:id', async (req, res) => {
       .orderBy(desc(messageActivity.createdAt))
       .limit(50);
     
+    const formatDate = (date: any) => date instanceof Date ? date.toISOString() : date;
+    
     res.json({
       success: true,
-      data: { ...message, replies, activity }
+      data: { 
+        ...message, 
+        createdAt: formatDate(message.createdAt),
+        updatedAt: formatDate(message.updatedAt),
+        replies: replies.map(r => ({ ...r, createdAt: formatDate(r.createdAt), emailSentAt: formatDate(r.emailSentAt) })),
+        activity: activity.map(a => ({ ...a, createdAt: formatDate(a.createdAt) }))
+      }
     });
   } catch (error: any) {
     res.json({ success: false, message: error.message });
@@ -176,10 +184,12 @@ router.get('/', async (req, res) => {
     const countResult = await db.select({ count: sql`count(*)` }).from(messages).where(where);
     const total = Number(countResult[0].count);
     
+    const formatDate = (date: any) => date instanceof Date ? date.toISOString() : date;
+    
     res.json({
       success: true,
       data: {
-        messages: items,
+        messages: items.map(m => ({ ...m, createdAt: formatDate(m.createdAt), updatedAt: formatDate(m.updatedAt) })),
         pagination: {
           page: parseInt(page as string),
           limit: parseInt(limit as string),
@@ -225,12 +235,11 @@ router.post('/bulk/delete', async (req, res) => {
       return res.json({ success: false, message: 'No IDs provided' });
     }
     
-    await db.delete(messageActivity).where(eq(messageActivity.messageId, ids[0]));
-    await db.delete(messages).where(eq(messages.id, ids[0]));
-    
-    for (let i = 1; i < ids.length; i++) {
-      await db.delete(messageActivity).where(eq(messageActivity.messageId, ids[i]));
-      await db.delete(messages).where(eq(messages.id, ids[i]));
+    for (const id of ids) {
+      await db.delete(messageReplies).where(eq(messageReplies.messageId, id));
+      await db.delete(messageViews).where(eq(messageViews.messageId, id));
+      await db.delete(messageActivity).where(eq(messageActivity.messageId, id));
+      await db.delete(messages).where(eq(messages.id, id));
     }
     
     res.json({ success: true });

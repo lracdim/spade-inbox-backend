@@ -1,6 +1,7 @@
 import { Router } from 'express';
 import { db } from '../db/index.js';
 import { messages, messageActivity } from '../db/schema.js';
+import { io } from '../index.js';
 
 const router = Router();
 
@@ -37,19 +38,21 @@ async function triggerAutoreplyWebhook(message: any) {
 
 router.post('/contact', async (req, res) => {
   try {
-    const { client_name, client_email, field_phone, field_company, field_message, metadata, skipAutoreply } = req.body;
+    const fields = req.body.fields || req.body;
     
     console.log('Elementor form data:', req.body);
     
     const ipAddress = req.ip || req.socket.remoteAddress;
     const userAgent = req.headers['user-agent'];
     
-    const finalName    = client_name   || 'Unknown';
-    const finalEmail   = client_email  || '';
-    const finalPhone   = field_phone   || null;
-    const finalCompany = field_company || null;
-    const finalBody    = field_message || '';
+    const finalName    = fields.client_name?.value   || fields.client_name   || 'Unknown';
+    const finalEmail   = fields.client_email?.value  || fields.client_email  || '';
+    const finalPhone   = fields.field_phone?.value   || fields.field_phone   || null;
+    const finalCompany = fields.field_company?.value || fields.field_company || null;
+    const finalBody    = fields.field_message?.value || fields.field_message || '';
     const finalSubject = `Contact form submission from ${finalName}`;
+    
+    const { metadata, skipAutoreply } = req.body;
     
     const coldEmail = detectColdEmail(finalEmail, finalBody);
     const status = coldEmail.isCold ? 'spam' : 'new';
@@ -78,6 +81,8 @@ router.post('/contact', async (req, res) => {
       triggerAutoreplyWebhook(newMessage[0]);
     }
     
+    io.emit('new-message', newMessage[0]);
+    
     res.json({ success: true, data: newMessage[0], coldEmail: coldEmail.isCold });
   } catch (error: any) {
     res.json({ success: false, message: error.message });
@@ -86,21 +91,30 @@ router.post('/contact', async (req, res) => {
 
 router.post('/quote', async (req, res) => {
   try {
-    const { name, email, phone, company, subject, body, metadata, skipAutoreply } = req.body;
+    const fields = req.body.fields || req.body;
+    const { metadata, skipAutoreply } = req.body;
+    
+    const finalName    = fields.name?.value    || fields.name    || '';
+    const finalEmail   = fields.email?.value   || fields.email   || '';
+    const finalPhone   = fields.phone?.value   || fields.phone   || null;
+    const finalCompany = fields.company?.value || fields.company || null;
+    const finalSubject = fields.subject?.value || fields.subject || '';
+    const finalBody    = fields.body?.value    || fields.body    || '';
+    
     const ipAddress = req.ip || req.socket.remoteAddress;
     const userAgent = req.headers['user-agent'];
     
-    const coldEmail = detectColdEmail(email, body);
+    const coldEmail = detectColdEmail(finalEmail, finalBody);
     const status = coldEmail.isCold ? 'spam' : 'new';
     
     const message = await db.insert(messages).values({
       source: 'quote',
-      name,
-      email,
-      phone,
-      company,
-      subject,
-      body,
+      name: finalName,
+      email: finalEmail,
+      phone: finalPhone,
+      company: finalCompany,
+      subject: finalSubject,
+      body: finalBody,
       priority: coldEmail.isCold ? 'normal' : 'high',
       status,
       ipAddress,
@@ -118,6 +132,8 @@ router.post('/quote', async (req, res) => {
       triggerAutoreplyWebhook(message[0]);
     }
     
+    io.emit('new-message', message[0]);
+    
     res.json({ success: true, data: message[0], coldEmail: coldEmail.isCold });
   } catch (error: any) {
     res.json({ success: false, message: error.message });
@@ -126,17 +142,21 @@ router.post('/quote', async (req, res) => {
 
 router.post('/subscription', async (req, res) => {
   try {
-    const { email, skipAutoreply } = req.body;
+    const fields = req.body.fields || req.body;
+    const { skipAutoreply } = req.body;
+    
+    const finalEmail = fields.email?.value || fields.email || '';
+    
     const ipAddress = req.ip || req.socket.remoteAddress;
     const userAgent = req.headers['user-agent'];
     
-    const coldEmail = detectColdEmail(email);
+    const coldEmail = detectColdEmail(finalEmail);
     const status = coldEmail.isCold ? 'spam' : 'new';
     
     const message = await db.insert(messages).values({
       source: 'subscription',
       name: 'Newsletter Subscriber',
-      email,
+      email: finalEmail,
       body: 'Newsletter subscription request',
       status,
       ipAddress,
@@ -153,6 +173,8 @@ router.post('/subscription', async (req, res) => {
     if (!coldEmail.isCold && skipAutoreply !== true) {
       triggerAutoreplyWebhook(message[0]);
     }
+    
+    io.emit('new-message', message[0]);
     
     res.json({ success: true, data: message[0], coldEmail: coldEmail.isCold });
   } catch (error: any) {

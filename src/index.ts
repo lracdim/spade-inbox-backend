@@ -1,6 +1,8 @@
 import express from 'express';
 import cors from 'cors';
 import dotenv from 'dotenv';
+import { createServer } from 'http';
+import { Server } from 'socket.io';
 import { authRouter } from './routes/auth.js';
 import { messagesRouter } from './routes/messages.js';
 import { usersRouter } from './routes/users.js';
@@ -11,6 +13,14 @@ dotenv.config();
 
 const app = express();
 const PORT = process.env.PORT || 3000;
+
+export const httpServer = createServer(app);
+export const io = new Server(httpServer, {
+  cors: {
+    origin: process.env.CORS_ORIGIN || '*',
+    credentials: true,
+  },
+});
 
 app.use(cors({
   origin: process.env.CORS_ORIGIN || '*',
@@ -41,7 +51,7 @@ app.use((err: any, req: express.Request, res: express.Response, next: express.Ne
   res.status(500).json({ success: false, message: 'Internal server error' });
 });
 
-app.listen(PORT, () => {
+httpServer.listen(PORT, () => {
   console.log(`Server running on port ${PORT}`);
 });
 

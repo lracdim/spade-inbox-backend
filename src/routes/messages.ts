@@ -126,6 +126,9 @@ router.post('/:id/reply', async (req, res) => {
     
     if (process.env.N8N_WEBHOOK_URL && message[0]) {
       try {
+        console.log('Calling reply webhook:', process.env.N8N_WEBHOOK_URL);
+        console.log('Reply payload:', { userEmail: message[0].email, userName: message[0].name, replyMessage: reply_body });
+        
         const controller = new AbortController();
         const timeout = setTimeout(() => controller.abort(), 10000);
         
@@ -145,9 +148,13 @@ router.post('/:id/reply', async (req, res) => {
         });
         
         clearTimeout(timeout);
+        const responseText = await response.text();
+        console.log('Reply webhook response:', response.status, responseText);
       } catch (n8nError: any) {
         console.error('n8n webhook error:', n8nError.message || n8nError);
       }
+    } else {
+      console.log('N8N_WEBHOOK_URL not configured or message not found');
     }
     
     res.json({ success: true, data: reply[0] });

@@ -1,4 +1,5 @@
 import { Router } from 'express';
+import { eq } from 'drizzle-orm';
 import { db } from '../db/index.js';
 import { messages, messageActivity } from '../db/schema.js';
 import { io } from '../index.js';
@@ -251,6 +252,68 @@ router.post('/subscription', async (req, res) => {
     
     res.json({ success: true, data: message[0], coldEmail: coldEmail.isCold });
   } catch (error: any) {
+    res.json({ success: false, message: error.message });
+  }
+});
+
+router.post('/email-reply', async (req, res) => {
+  try {
+    const { from, subject, body, inReplyTo } = req.body;
+    
+    let email = from;
+    if (email.includes('<')) {
+      email = email.match(/<(.+)>/)?.[1] || email;
+    }
+    email = email.trim().toLowerCase();
+    
+    console.log('Incoming email reply from:', email, 'subject:', subject);
+    
+    let messageId: number | undefined;
+    if (inReplyTo) {
+      const match = inReplyTo.match(/message-(\d+)/);
+      if (match) messageId = parseInt(match[1]);
+    }
+    
+    if (messageId) {
+      const existing = await db.select().from(messages).where(eq(messages.id, messageId));
+      if (existing.length > 0) {
+        await db.update(messages)
+          .set({ status: 'new', updatedAt: new Date() })
+          .where(eq(messages.id, messageId));
+        
+        await db.insert(messageActivity).values({
+          messageId,
+          action: 'received_reply',
+          details: { from: email, subject, body },
+        });
+        
+        io.emit('new-message', { ...existing[0], isReply: true });
+        
+        return res.json({ success: true, message: 'Reply processed' });
+      }
+    }
+    
+    const newMessage = await db.insert(messages).values({
+      source: 'email',
+      name: email.split('@')[0],
+      email: email,
+      subject: subject || 'No Subject',
+      body: body || '',
+      status: 'new',
+      priority: 'normal',
+    }).returning();
+    
+    await db.insert(messageActivity).values({
+      messageId: newMessage[0].id,
+      action: 'received',
+      details: { from: email, subject },
+    });
+    
+    io.emit('new-message', newMessage[0]);
+    
+    res.json({ success: true, data: newMessage[0] });
+  } catch (error: any) {
+    console.error('Email reply error:', error);
     res.json({ success: false, message: error.message });
   }
 });

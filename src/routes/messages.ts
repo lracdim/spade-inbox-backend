@@ -140,9 +140,12 @@ router.post('/:id/reply', async (req, res) => {
             'x-secret-key': process.env.N8N_SECRET || ''
           },
           body: JSON.stringify({
-            userEmail: message[0].email,
-            userName: message[0].name,
-            replyMessage: reply_body
+            messageId: parseInt(id),
+            to: message[0].email,
+            name: message[0].name,
+            replyTo: `reply+messageid${id}@spadesecurityservices.com`,
+            subject: `Re: ${message[0].subject}`,
+            body: reply_body
           }),
           signal: controller.signal
         });

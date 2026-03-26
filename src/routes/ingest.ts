@@ -75,6 +75,7 @@ async function triggerAutoreplyWebhook(message: any, type: 'contact' | 'subscrip
     messageId: message.id,
     name: message.name,
     email: message.email,
+    replyTo: `reply+messageid${message.id}@spadesecurityservices.com`,
     type
   };
   
@@ -258,19 +259,24 @@ router.post('/subscription', async (req, res) => {
 
 router.post('/email-reply', async (req, res) => {
   try {
-    const { from, subject, body, inReplyTo } = req.body;
+    const { from, fromEmail, fromName, subject, body, inReplyTo, messageId: directMessageId } = req.body;
     
-    let email = from;
-    if (email.includes('<')) {
+    let email = fromEmail || from;
+    if (email && email.includes('<')) {
       email = email.match(/<(.+)>/)?.[1] || email;
     }
-    email = email.trim().toLowerCase();
+    if (email) email = email.trim().toLowerCase();
     
-    console.log('Incoming email reply from:', email, 'subject:', subject);
+    const name = fromName || (email ? email.split('@')[0] : 'Unknown');
+    const messageSubject = subject || 'No Subject';
+    const messageBody = body || '';
     
-    let messageId: number | undefined;
-    if (inReplyTo) {
-      const match = inReplyTo.match(/message-(\d+)/);
+    console.log('Incoming email reply from:', email, 'subject:', messageSubject, 'messageId:', directMessageId);
+    
+    let messageId: number | undefined = directMessageId;
+    
+    if (!messageId && inReplyTo) {
+      const match = inReplyTo.match(/messageid(\d+)/);
       if (match) messageId = parseInt(match[1]);
     }
     
@@ -283,8 +289,9 @@ router.post('/email-reply', async (req, res) => {
         
         await db.insert(messageActivity).values({
           messageId,
+          userId: existing[0].id,
           action: 'received_reply',
-          details: { from: email, subject, body },
+          details: { from: email, fromName: name, subject: messageSubject, body: messageBody },
         });
         
         io.emit('new-message', { ...existing[0], isReply: true });
@@ -293,12 +300,16 @@ router.post('/email-reply', async (req, res) => {
       }
     }
     
+    if (!email) {
+      return res.json({ success: false, message: 'No email address provided' });
+    }
+    
     const newMessage = await db.insert(messages).values({
       source: 'email',
-      name: email.split('@')[0],
-      email: email,
-      subject: subject || 'No Subject',
-      body: body || '',
+      name,
+      email,
+      subject: messageSubject,
+      body: messageBody,
       status: 'new',
       priority: 'normal',
     }).returning();
@@ -306,7 +317,7 @@ router.post('/email-reply', async (req, res) => {
     await db.insert(messageActivity).values({
       messageId: newMessage[0].id,
       action: 'received',
-      details: { from: email, subject },
+      details: { from: email, fromName: name, subject: messageSubject },
     });
     
     io.emit('new-message', newMessage[0]);

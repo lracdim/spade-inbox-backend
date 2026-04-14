@@ -17,7 +17,7 @@ const PORT = process.env.PORT || 3000;
 export const httpServer = createServer(app);
 export const io = new Server(httpServer, {
   cors: {
-    origin: process.env.CORS_ORIGIN || '*',
+    origin: process.env.FRONTEND_URL || '*',
     credentials: true,
   },
 });
@@ -36,7 +36,7 @@ io.on('connection', (socket) => {
 });
 
 app.use(cors({
-  origin: process.env.CORS_ORIGIN || '*',
+  origin: process.env.FRONTEND_URL || '*',
   credentials: true,
 }));
 

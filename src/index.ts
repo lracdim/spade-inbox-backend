@@ -14,12 +14,26 @@ dotenv.config();
 const app = express();
 const PORT = process.env.PORT || 3000;
 
+const ALLOWED_ORIGINS = [
+  'https://inbox.spadesecurityservices.com',
+  process.env.FRONTEND_URL,
+  process.env.NODE_ENV === 'development' ? 'http://localhost:5173' : null,
+].filter(Boolean) as string[];
+
+const corsOptions = {
+  origin: (origin: string | undefined, callback: (err: Error | null, allow?: boolean) => void) => {
+    if (!origin || ALLOWED_ORIGINS.includes(origin)) {
+      callback(null, true);
+    } else {
+      callback(new Error(`CORS blocked: ${origin}`));
+    }
+  },
+  credentials: true,
+};
+
 export const httpServer = createServer(app);
 export const io = new Server(httpServer, {
-  cors: {
-    origin: process.env.FRONTEND_URL || '*',
-    credentials: true,
-  },
+  cors: corsOptions,
 });
 
 io.on('connection', (socket) => {
@@ -35,10 +49,7 @@ io.on('connection', (socket) => {
   });
 });
 
-app.use(cors({
-  origin: process.env.FRONTEND_URL || '*',
-  credentials: true,
-}));
+app.use(cors(corsOptions));
 
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));

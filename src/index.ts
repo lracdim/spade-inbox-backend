@@ -1,4 +1,5 @@
 import express from 'express';
+import cors from 'cors';
 import dotenv from 'dotenv';
 import { createServer } from 'http';
 import { Server } from 'socket.io';
@@ -18,6 +19,8 @@ export const io = new Server(httpServer, {
   cors: {
     origin: 'https://inbox.spadesecurityservices.com',
     credentials: true,
+    methods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH', 'OPTIONS'],
+    allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With'],
   },
 });
 
@@ -34,22 +37,12 @@ io.on('connection', (socket) => {
   });
 });
 
-app.use((req, res, next) => {
-  const origin = req.headers.origin;
-
-  if (!origin || origin === 'https://inbox.spadesecurityservices.com') {
-    res.setHeader('Access-Control-Allow-Origin', origin || 'https://inbox.spadesecurityservices.com');
-    res.setHeader('Access-Control-Allow-Credentials', 'true');
-    res.setHeader('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, PATCH, OPTIONS');
-    res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization, X-Requested-With');
-  }
-
-  if (req.method === 'OPTIONS') {
-    return res.status(204).end();
-  }
-
-  next();
-});
+app.use(cors({
+  origin: 'https://inbox.spadesecurityservices.com',
+  credentials: true,
+  methods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH', 'OPTIONS'],
+  allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With'],
+}));
 
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
@@ -71,11 +64,6 @@ app.use('/api/ingest', ingestRouter);
 app.use('/api/setup', setupRouter);
 
 app.use((err: any, req: express.Request, res: express.Response, next: express.NextFunction) => {
-  const origin = req.headers.origin;
-  if (origin === 'https://inbox.spadesecurityservices.com') {
-    res.setHeader('Access-Control-Allow-Origin', origin);
-    res.setHeader('Access-Control-Allow-Credentials', 'true');
-  }
   console.error('Error:', err);
   res.status(500).json({ success: false, message: 'Internal server error' });
 });

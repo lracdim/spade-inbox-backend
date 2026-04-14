@@ -8,10 +8,14 @@ const router = Router();
 
 router.get('/stats', async (req, res) => {
   try {
-    const totalResult = await db.select({ count: sql`count(*)` }).from(messages).where(eq(messages.isDeleted, false));
-    const newResult = await db.select({ count: sql`count(*)` }).from(messages).where(and(eq(messages.isDeleted, false), eq(messages.status, 'new')));
-    const highResult = await db.select({ count: sql`count(*)` }).from(messages).where(and(eq(messages.isDeleted, false), eq(messages.priority, 'high')));
+    const notDeleted = sql`(${messages.isDeleted} = false OR ${messages.isDeleted} IS NULL)`;
+    const notSpam = sql`(${messages.isSpam} = false OR ${messages.isSpam} IS NULL)`;
+    
+    const totalResult = await db.select({ count: sql`count(*)` }).from(messages).where(and(notDeleted, notSpam));
+    const newResult = await db.select({ count: sql`count(*)` }).from(messages).where(and(notDeleted, notSpam, eq(messages.status, 'new')));
+    const highResult = await db.select({ count: sql`count(*)` }).from(messages).where(and(notDeleted, notSpam, eq(messages.priority, 'high')));
     const trashResult = await db.select({ count: sql`count(*)` }).from(messages).where(eq(messages.isDeleted, true));
+    const spamResult = await db.select({ count: sql`count(*)` }).from(messages).where(and(notDeleted, eq(messages.isSpam, true)));
     
     res.json({
       success: true,
@@ -20,6 +24,7 @@ router.get('/stats', async (req, res) => {
         new: Number(newResult[0].count),
         highPriority: Number(highResult[0].count),
         trash: Number(trashResult[0].count),
+        spam: Number(spamResult[0].count),
       }
     });
   } catch (error: any) {
@@ -106,6 +111,45 @@ router.put('/:id/priority', async (req, res) => {
   }
 });
 
+router.patch('/:id/spam', async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { spamReason } = req.body;
+    
+    await db.update(messages)
+      .set({ 
+        isSpam: true, 
+        spamScore: 100,
+        spamReason: spamReason || 'Manually marked as spam',
+        updatedAt: new Date() 
+      })
+      .where(eq(messages.id, parseInt(id)));
+    
+    res.json({ success: true });
+  } catch (error: any) {
+    res.json({ success: false, message: error.message });
+  }
+});
+
+router.patch('/:id/restore', async (req, res) => {
+  try {
+    const { id } = req.params;
+    
+    await db.update(messages)
+      .set({ 
+        isSpam: false, 
+        spamScore: 0,
+        spamReason: null,
+        updatedAt: new Date() 
+      })
+      .where(eq(messages.id, parseInt(id)));
+    
+    res.json({ success: true });
+  } catch (error: any) {
+    res.json({ success: false, message: error.message });
+  }
+});
+
 router.post('/:id/reply', async (req, res) => {
   try {
     const { id } = req.params;
@@ -179,8 +223,13 @@ router.get('/', async (req, res) => {
     
     if (type === 'trash') {
       conditions.push(eq(messages.isDeleted, true));
+    } else if (type === 'spam') {
+      conditions.push(eq(messages.isSpam, true));
     } else {
-      conditions.push(sql`(${messages.isDeleted} = false OR ${messages.isDeleted} IS NULL)`);
+      conditions.push(
+        sql`(${messages.isDeleted} = false OR ${messages.isDeleted} IS NULL)`,
+        sql`(${messages.isSpam} = false OR ${messages.isSpam} IS NULL)`
+      );
     }
     
     if (priority) conditions.push(eq(messages.priority, priority as string));

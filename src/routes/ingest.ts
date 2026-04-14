@@ -27,6 +27,18 @@ const SPAM_KEYWORDS = [
   'bank', 'million dollars', 'inheritance', 'next of kin',
   'funds release', 'risk free', 'awaiting your reply',
   'private email', 'urgent business',
+  'free money', 'earn money', 'make money fast', 'guaranteed income',
+  'no investment', 'double your income', 'extra income', 'quick cash',
+  'instant payment', 'paid daily', 'cash bonus', 'forex profit', 'trading secret',
+  'winner', 'you won', 'claim now', 'offer expires', 'special promotion',
+  'order now', 'get it now', 'don\'t miss out', 'grab now',
+  'immediate action', 'respond now', 'verify now', 'account suspended',
+  'security alert', 'final warning', 'deadline', 'time sensitive',
+  'verify your account', 'update your account', 'login attempt',
+  'unusual activity', 'confirm identity', 'reset password',
+  'bank alert', 'paypal alert', 'security breach', 'click to secure', 'confirm now',
+  'casino', 'bet now', 'gambling', 'lottery', 'loan approval',
+  'no credit check', 'fast loan', 'viagra', 'cialis', 'adult', 'xxx', 'porn'
 ];
 
 const SPAM_PATTERNS = [
@@ -36,6 +48,9 @@ const SPAM_PATTERNS = [
   /\d+%\s*(off|discount|roi|return)/i,
   /\b(whatsapp|telegram)\s*[:+]?\s*\d{7,}/i,
   /\d+\s*(million|billion)\s*(dollar|usd)/i,
+  /\b(bit\.ly|tinyurl|shorturl|goo\.gl)\b/i,
+  /\.(ru|xyz|click|top|work|tk|ml|ga|cf|gq)\b/i,
+  /\b\d{10,}\b/,
 ];
 
 function detectColdEmail(email: string, body?: string): { isCold: boolean; reason: string } {
@@ -130,7 +145,7 @@ router.post('/contact', async (req, res) => {
     const { metadata, skipAutoreply } = req.body;
     
     const coldEmail = detectColdEmail(finalEmail, finalBody);
-    const status = coldEmail.isCold ? 'spam' : 'new';
+    const status = coldEmail.isCold ? 'new' : 'new';
     
     const newMessage = await db.insert(messages).values({
       source: 'contact',
@@ -142,6 +157,9 @@ router.post('/contact', async (req, res) => {
       body: finalBody,
       status,
       isDeleted: false,
+      isSpam: coldEmail.isCold,
+      spamScore: coldEmail.isCold ? 100 : 0,
+      spamReason: coldEmail.reason || null,
       ipAddress,
       userAgent,
       metadata: metadata ? { ...metadata, coldEmailReason: coldEmail.reason } : { coldEmailReason: coldEmail.reason },
@@ -181,7 +199,7 @@ router.post('/quote', async (req, res) => {
     const userAgent = req.headers['user-agent'];
     
     const coldEmail = detectColdEmail(finalEmail, finalBody);
-    const status = coldEmail.isCold ? 'spam' : 'new';
+    const status = coldEmail.isCold ? 'new' : 'new';
     
     const message = await db.insert(messages).values({
       source: 'quote',
@@ -194,6 +212,9 @@ router.post('/quote', async (req, res) => {
       priority: coldEmail.isCold ? 'normal' : 'high',
       status,
       isDeleted: false,
+      isSpam: coldEmail.isCold,
+      spamScore: coldEmail.isCold ? 100 : 0,
+      spamReason: coldEmail.reason || null,
       ipAddress,
       userAgent,
       metadata: metadata ? { ...metadata, coldEmailReason: coldEmail.reason } : { coldEmailReason: coldEmail.reason },
@@ -228,7 +249,7 @@ router.post('/subscription', async (req, res) => {
     const userAgent = req.headers['user-agent'];
     
     const coldEmail = detectColdEmail(finalEmail);
-    const status = coldEmail.isCold ? 'spam' : 'new';
+    const status = coldEmail.isCold ? 'new' : 'new';
     
     const message = await db.insert(messages).values({
       source: 'subscription',
@@ -237,6 +258,9 @@ router.post('/subscription', async (req, res) => {
       body: 'Newsletter subscription request',
       status,
       isDeleted: false,
+      isSpam: coldEmail.isCold,
+      spamScore: coldEmail.isCold ? 100 : 0,
+      spamReason: coldEmail.reason || null,
       ipAddress,
       userAgent,
       metadata: { coldEmailReason: coldEmail.reason },
@@ -315,6 +339,9 @@ router.post('/email-reply', async (req, res) => {
       body: messageBody,
       status: 'new',
       isDeleted: false,
+      isSpam: false,
+      spamScore: 0,
+      spamReason: null,
       priority: 'normal',
     }).returning();
     

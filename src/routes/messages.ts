@@ -8,9 +8,10 @@ const router = Router();
 
 router.get('/stats', async (req, res) => {
   try {
-    const totalResult = await db.select({ count: sql`count(*)` }).from(messages);
-    const newResult = await db.select({ count: sql`count(*)` }).from(messages).where(eq(messages.status, 'new'));
-    const highResult = await db.select({ count: sql`count(*)` }).from(messages).where(eq(messages.priority, 'high'));
+    const totalResult = await db.select({ count: sql`count(*)` }).from(messages).where(eq(messages.isDeleted, false));
+    const newResult = await db.select({ count: sql`count(*)` }).from(messages).where(and(eq(messages.isDeleted, false), eq(messages.status, 'new')));
+    const highResult = await db.select({ count: sql`count(*)` }).from(messages).where(and(eq(messages.isDeleted, false), eq(messages.priority, 'high')));
+    const trashResult = await db.select({ count: sql`count(*)` }).from(messages).where(eq(messages.isDeleted, true));
     
     res.json({
       success: true,
@@ -18,6 +19,7 @@ router.get('/stats', async (req, res) => {
         total: Number(totalResult[0].count),
         new: Number(newResult[0].count),
         highPriority: Number(highResult[0].count),
+        trash: Number(trashResult[0].count),
       }
     });
   } catch (error: any) {
@@ -168,14 +170,19 @@ router.post('/:id/reply', async (req, res) => {
 
 router.get('/', async (req, res) => {
   try {
-    const { status, priority, source, search, page = '1', limit = '20' } = req.query;
-    const offset = (parseInt(page as string) - 1) * parseInt(limit as string);
+    const { type, priority, source, search, page = '1', limit = '50' } = req.query;
+    const pageNum = parseInt(page as string);
+    const limitNum = parseInt(limit as string);
+    const offset = (pageNum - 1) * limitNum;
     
     const conditions: any[] = [];
-    if (!status) {
-      conditions.push(sql`${messages.status} != 'spam'`);
+    
+    if (type === 'trash') {
+      conditions.push(eq(messages.isDeleted, true));
+    } else {
+      conditions.push(sql`(${messages.isDeleted} = false OR ${messages.isDeleted} IS NULL)`);
     }
-    if (status) conditions.push(eq(messages.status, status as string));
+    
     if (priority) conditions.push(eq(messages.priority, priority as string));
     if (source) conditions.push(eq(messages.source, source as string));
     if (search) {
@@ -183,12 +190,16 @@ router.get('/', async (req, res) => {
       conditions.push(sql`(name ILIKE ${'%' + searchStr + '%'}) OR (email ILIKE ${'%' + searchStr + '%'}) OR (subject ILIKE ${'%' + searchStr + '%'}) OR (body ILIKE ${'%' + searchStr + '%'})`);
     }
     
-    const where = conditions.length ? and(...conditions) : undefined;
+    if (conditions.length === 0) {
+      throw new Error('Query conditions missing — unsafe query blocked');
+    }
+    
+    const where = and(...conditions);
     
     const items = await db.select().from(messages)
       .where(where)
       .orderBy(desc(messages.createdAt))
-      .limit(parseInt(limit as string))
+      .limit(limitNum)
       .offset(offset);
     
     const countResult = await db.select({ count: sql`count(*)` }).from(messages).where(where);
@@ -201,10 +212,10 @@ router.get('/', async (req, res) => {
       data: {
         messages: items.map(m => ({ ...m, createdAt: formatDate(m.createdAt), updatedAt: formatDate(m.updatedAt) })),
         pagination: {
-          page: parseInt(page as string),
-          limit: parseInt(limit as string),
+          page: pageNum,
+          limit: limitNum,
           total,
-          totalPages: Math.ceil(total / parseInt(limit as string)),
+          totalPages: Math.ceil(total / limitNum),
         }
       }
     });
@@ -222,14 +233,62 @@ router.post('/bulk/trash', async (req, res) => {
     }
     
     await db.update(messages)
-      .set({ status: 'trash', updatedAt: new Date() })
-      .where(eq(messages.id, ids[0]));
+      .set({ isDeleted: true, updatedAt: new Date() })
+      .where(sql`${messages.id} IN (${ids})`);
     
-    for (let i = 1; i < ids.length; i++) {
-      await db.update(messages)
-        .set({ status: 'trash', updatedAt: new Date() })
-        .where(eq(messages.id, ids[i]));
+    res.json({ success: true });
+  } catch (error: any) {
+    res.json({ success: false, message: error.message });
+  }
+});
+
+router.post('/bulk/mark-viewed', async (req, res) => {
+  try {
+    const { ids } = req.body;
+    
+    if (!Array.isArray(ids) || ids.length === 0) {
+      return res.json({ success: false, message: 'No IDs provided' });
     }
+    
+    await db.update(messages)
+      .set({ status: 'viewed', updatedAt: new Date() })
+      .where(sql`${messages.id} IN (${ids})`);
+    
+    res.json({ success: true });
+  } catch (error: any) {
+    res.json({ success: false, message: error.message });
+  }
+});
+
+router.post('/bulk/archive', async (req, res) => {
+  try {
+    const { ids } = req.body;
+    
+    if (!Array.isArray(ids) || ids.length === 0) {
+      return res.json({ success: false, message: 'No IDs provided' });
+    }
+    
+    await db.update(messages)
+      .set({ status: 'archived', updatedAt: new Date() })
+      .where(sql`${messages.id} IN (${ids})`);
+    
+    res.json({ success: true });
+  } catch (error: any) {
+    res.json({ success: false, message: error.message });
+  }
+});
+
+router.post('/bulk/restore', async (req, res) => {
+  try {
+    const { ids } = req.body;
+    
+    if (!Array.isArray(ids) || ids.length === 0) {
+      return res.json({ success: false, message: 'No IDs provided' });
+    }
+    
+    await db.update(messages)
+      .set({ isDeleted: false, updatedAt: new Date() })
+      .where(sql`${messages.id} IN (${ids})`);
     
     res.json({ success: true });
   } catch (error: any) {
@@ -260,7 +319,7 @@ router.post('/bulk/delete', async (req, res) => {
 
 router.post('/empty-trash', async (req, res) => {
   try {
-    const trashMessages = await db.select({ id: messages.id }).from(messages).where(eq(messages.status, 'trash'));
+    const trashMessages = await db.select({ id: messages.id }).from(messages).where(eq(messages.isDeleted, true));
     
     for (const msg of trashMessages) {
       await db.delete(messageActivity).where(eq(messageActivity.messageId, msg.id));

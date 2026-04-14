@@ -141,6 +141,7 @@ router.post('/contact', async (req, res) => {
       subject: finalSubject,
       body: finalBody,
       status,
+      isDeleted: false,
       ipAddress,
       userAgent,
       metadata: metadata ? { ...metadata, coldEmailReason: coldEmail.reason } : { coldEmailReason: coldEmail.reason },
@@ -192,6 +193,7 @@ router.post('/quote', async (req, res) => {
       body: finalBody,
       priority: coldEmail.isCold ? 'normal' : 'high',
       status,
+      isDeleted: false,
       ipAddress,
       userAgent,
       metadata: metadata ? { ...metadata, coldEmailReason: coldEmail.reason } : { coldEmailReason: coldEmail.reason },
@@ -234,6 +236,7 @@ router.post('/subscription', async (req, res) => {
       email: finalEmail,
       body: 'Newsletter subscription request',
       status,
+      isDeleted: false,
       ipAddress,
       userAgent,
       metadata: { coldEmailReason: coldEmail.reason },
@@ -311,6 +314,7 @@ router.post('/email-reply', async (req, res) => {
       subject: messageSubject,
       body: messageBody,
       status: 'new',
+      isDeleted: false,
       priority: 'normal',
     }).returning();
     

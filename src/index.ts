@@ -50,6 +50,7 @@ io.on('connection', (socket) => {
 });
 
 app.use(cors(corsOptions));
+app.options('*', cors(corsOptions));
 
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
@@ -71,6 +72,11 @@ app.use('/api/ingest', ingestRouter);
 app.use('/api/setup', setupRouter);
 
 app.use((err: any, req: express.Request, res: express.Response, next: express.NextFunction) => {
+  const origin = req.headers.origin;
+  if (origin && ALLOWED_ORIGINS.includes(origin)) {
+    res.header('Access-Control-Allow-Origin', origin);
+    res.header('Access-Control-Allow-Credentials', 'true');
+  }
   console.error('Error:', err);
   res.status(500).json({ success: false, message: 'Internal server error' });
 });

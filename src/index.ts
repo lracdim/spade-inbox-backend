@@ -1,5 +1,4 @@
 import express from 'express';
-import cors from 'cors';
 import dotenv from 'dotenv';
 import { createServer } from 'http';
 import { Server } from 'socket.io';
@@ -14,26 +13,12 @@ dotenv.config();
 const app = express();
 const PORT = process.env.PORT || 3000;
 
-const ALLOWED_ORIGINS = [
-  'https://inbox.spadesecurityservices.com',
-  process.env.FRONTEND_URL,
-  process.env.NODE_ENV === 'development' ? 'http://localhost:5173' : null,
-].filter(Boolean) as string[];
-
-const corsOptions = {
-  origin: (origin: string | undefined, callback: (err: Error | null, allow?: boolean) => void) => {
-    if (!origin || ALLOWED_ORIGINS.includes(origin)) {
-      callback(null, true);
-    } else {
-      callback(new Error(`CORS blocked: ${origin}`));
-    }
-  },
-  credentials: true,
-};
-
 export const httpServer = createServer(app);
 export const io = new Server(httpServer, {
-  cors: corsOptions,
+  cors: {
+    origin: 'https://inbox.spadesecurityservices.com',
+    credentials: true,
+  },
 });
 
 io.on('connection', (socket) => {
@@ -49,8 +34,22 @@ io.on('connection', (socket) => {
   });
 });
 
-app.use(cors(corsOptions));
-app.options('*', cors(corsOptions));
+app.use((req, res, next) => {
+  const origin = req.headers.origin;
+
+  if (!origin || origin === 'https://inbox.spadesecurityservices.com') {
+    res.setHeader('Access-Control-Allow-Origin', origin || 'https://inbox.spadesecurityservices.com');
+    res.setHeader('Access-Control-Allow-Credentials', 'true');
+    res.setHeader('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, PATCH, OPTIONS');
+    res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization, X-Requested-With');
+  }
+
+  if (req.method === 'OPTIONS') {
+    return res.status(204).end();
+  }
+
+  next();
+});
 
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
@@ -73,9 +72,9 @@ app.use('/api/setup', setupRouter);
 
 app.use((err: any, req: express.Request, res: express.Response, next: express.NextFunction) => {
   const origin = req.headers.origin;
-  if (origin && ALLOWED_ORIGINS.includes(origin)) {
-    res.header('Access-Control-Allow-Origin', origin);
-    res.header('Access-Control-Allow-Credentials', 'true');
+  if (origin === 'https://inbox.spadesecurityservices.com') {
+    res.setHeader('Access-Control-Allow-Origin', origin);
+    res.setHeader('Access-Control-Allow-Credentials', 'true');
   }
   console.error('Error:', err);
   res.status(500).json({ success: false, message: 'Internal server error' });
